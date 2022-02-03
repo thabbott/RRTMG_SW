@@ -4,7 +4,15 @@
 !     created:   $Date$
 !
 
-       module rrtmg_sw_rad
+!----------------------------------------------------------------------------
+! Modifications
+! thabbott 3 November 2021
+!   - add arguments for choosing full-spectrum vs. band-limited output:
+!     start_band and end_band for defining spectral interval for
+!     calculations, and wavenumber_range for receiving bracketing
+!     wavenumbers as output
+
+      module rrtmg_sw_rad
 
 !----------------------------------------------------------------------------
 ! Copyright (c) 2002-2020, Atmospheric & Environmental Research, Inc. (AER)
@@ -104,7 +112,9 @@
              taucld  ,ssacld  ,asmcld  ,fsfcld  , &
              cicewp  ,cliqwp  ,reice   ,reliq   , &
              tauaer  ,ssaaer  ,asmaer  ,ecaer   , &
+             start_band, end_band,                &
              swuflx  ,swdflx  ,swhr    ,swuflxc ,swdflxc ,swhrc, &
+             wavenumber_range,                    &
 ! optional I/O
              bndsolvar,indsolvar,solcycfrac)
 
@@ -359,7 +369,13 @@
                                                       ! (non-delta scaled)      
       real(kind=rb), intent(in) :: ecaer(:,:,:)       ! Aerosol optical depth at 0.55 micron (iaer=6 only)
                                                       !    Dimensions: (ncol,nlay,naerec)
-                                                      ! (non-delta scaled)      
+                                                      ! (non-delta scaled) 
+      integer(kind=im), intent(in) :: start_band      ! First spectral band included in calculation
+                                                      !    Must be between 16 and 29, inclusive
+      integer(kind=im), intent(in) :: end_band        ! Final spectral band included in calculation
+                                                      !    Must be between 16 and 29, inclusive
+
+
 
 ! ----- Output -----
 
@@ -375,6 +391,9 @@
                                                       !    Dimensions: (ncol,nlay+1)
       real(kind=rb), intent(out) :: swhrc(:,:)        ! Clear sky shortwave radiative heating rate (K/d)
                                                       !    Dimensions: (ncol,nlay)
+      real(kind=rb), intent(out) :: wavenumber_range(:)
+                                                      ! Wavenumber range of included spectral bands
+                                                      !    Dimensions: (2,)
 
 ! ----- Local -----
 
@@ -528,6 +547,11 @@
       real(kind=rb) :: svar_s_bnd(jpband)     ! Solar variability sunspot multiplier (by band)
       real(kind=rb) :: svar_i_bnd(jpband)     ! Solar variability baseline irradiance multiplier (by band)
 
+! Input validation
+      if (start_band.lt.jpb1) stop 'start_band below valid range'
+      if (start_band.gt.jpb2) stop 'start_band above valid range'
+      if (end_band.lt.jpb1) stop 'end_band below valid range'
+      if (end_band.gt.jpb2) stop 'end_band above valid range'
 
 ! Initializations
 
@@ -536,10 +560,14 @@
       oneminus = 1.0_rb - zepsec
       pi = 2._rb * asin(1._rb)
 
-      istart = jpb1
-      iend = jpb2
-      iout = 0
+      istart = start_band
+      iend = end_band
+      iout = 99
       icpr = 0
+
+! Set output wavenumber range
+      wavenumber_range(1) = wavenum1(istart)
+      wavenumber_range(2) = wavenum2(iend)
 
 ! In a GCM with or without McICA, set nlon to the longitude dimension
 !
